@@ -1,0 +1,56 @@
+请审查以下项目代码。
+
+## 项目信息
+
+- **项目类型**: {{ project_type }}
+- **主要语言**: {{ primary_language }}
+{% if frameworks %}- **框架**: {{ frameworks | join(', ') }}{% endif %}
+{% if total_files %}- **文件数量**: {{ total_files }}{% endif %}
+
+## 待审查代码
+
+{% for file in files %}
+### 文件: `{{ file.path }}` ({{ file.language }}, {{ file.line_count }} 行)
+
+```
+{{ file.content }}
+```
+
+{% endfor %}
+
+{% if custom_instructions %}
+## 用户自定义审查要求
+
+{{ custom_instructions }}
+{% endif %}
+
+## 输出格式
+
+请严格按照以下 JSON 格式输出：
+
+```json
+{
+  "summary": "总体审查评估（2-3句话总结主要发现）",
+  "issues": [
+    {
+      "file_path": "文件路径",
+      "start_line": 起始行号,
+      "end_line": 结束行号,
+      "severity": "critical|high|medium|low",
+      "dimension": "security|correctness|performance|maintainability|type_safety|completeness|best_practices",
+      "title": "问题标题（简短描述）",
+      "description": "详细描述问题和影响",
+      "suggestion": "修复建议",
+      "code_snippet": "问题代码片段（可选）",
+      "fix_snippet": "修复后代码片段（可选）",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+```
+
+请确保：
+1. 每个 issue 的行号准确对应源代码位置
+2. severity 和 dimension 使用指定的枚举值
+3. confidence 反映你对这个发现的确定程度
+4. 只报告真正值得关注的问题，不要凑数

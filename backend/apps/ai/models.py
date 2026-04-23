@@ -31,7 +31,7 @@ class AIConfig(UUIDMixin, TimestampMixin):
     )
     is_default = models.BooleanField(default=False, verbose_name="默认配置")
     is_active = models.BooleanField(default=True, verbose_name="启用")
-    extra_settings = models.JSONField(default=dict, verbose_name="额外设置")
+    extra_settings = models.JSONField(default=dict, blank=True, verbose_name="额外设置")
 
     class Meta:
         db_table = "ai_aiconfig"
