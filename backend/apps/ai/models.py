@@ -1,12 +1,17 @@
+import logging
+
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.common.models import TimestampMixin, UUIDMixin
+from apps.common.services.crypto import AESEncryption
 
-# 使用 Django signing 进行可逆加密，基于 SECRET_KEY
+logger = logging.getLogger(__name__)
+
 _signer = signing.Signer()
+_aes = AESEncryption()
 
 
 class AIProvider(models.TextChoices):
@@ -56,16 +61,25 @@ class AIConfig(UUIDMixin, TimestampMixin):
 
     @property
     def api_key(self) -> str:
-        """解密并返回 API Key"""
+        """解密并返回 API Key，优先 AES-GCM，回退 Django signing"""
+        encrypted = self._encrypted_api_key
+        if _aes.available and AESEncryption.is_aes_encrypted(encrypted):
+            try:
+                return _aes.decrypt(encrypted)
+            except Exception:
+                logger.warning("AES-GCM decryption failed for config %s", self.pk)
         try:
-            return _signer.unsign(self._encrypted_api_key)
+            return _signer.unsign(encrypted)
         except signing.BadSignature:
-            return self._encrypted_api_key
+            return encrypted
 
     @api_key.setter
     def api_key(self, value: str) -> None:
-        """加密并存储 API Key"""
-        self._encrypted_api_key = _signer.sign(value)
+        """加密并存储 API Key，优先 AES-GCM，回退 Django signing"""
+        if _aes.available:
+            self._encrypted_api_key = _aes.encrypt(value)
+        else:
+            self._encrypted_api_key = _signer.sign(value)
 
     def clean(self) -> None:
         if self.is_default:
