@@ -12,8 +12,9 @@ vi.mock('../../api/config', () => ({
 import * as api from '../../api/config'
 
 const mockConfig = {
-  id: 'c1', provider: 'openai', display_name: 'GPT-4o', model_name: 'gpt-4o',
-  base_url: '', is_default: true, is_active: true, priority: 1, fallback_enabled: false,
+  id: 'c1', provider: 'openai' as const, display_name: 'GPT-4o', model_name: 'gpt-4o',
+  masked_api_key: 'sk-***', base_url: '', is_default: true, is_active: true,
+  priority: 1, fallback_enabled: false, extra_settings: {},
   created_at: '', updated_at: '',
 }
 
@@ -87,12 +88,12 @@ describe('configStore', () => {
   })
 
   it('testConnection delegates to API', async () => {
-    const mockResult = { success: true, message: 'ok', model_name: 'gpt-4o' }
+    const mockResult = { connected: true, response_preview: 'ok' }
     vi.mocked(api.testConnection).mockResolvedValue(mockResult as Awaited<ReturnType<typeof api.testConnection>>)
 
     const result = await useConfigStore.getState().testConnection('c1')
 
     expect(api.testConnection).toHaveBeenCalledWith({ config_id: 'c1' })
-    expect(result.success).toBe(true)
+    expect(result.connected).toBe(true)
   })
 })

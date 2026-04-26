@@ -16,4 +16,36 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    cssCodeSplit: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react-vendor',
+              test: /node_modules[\\\/](?:react|react-dom|react-router-dom)[\\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'antd-vendor',
+              test: /node_modules[\\\/](?:antd|@ant-design)[\\\/]/,
+              priority: 15,
+            },
+            {
+              name: 'monaco-vendor',
+              test: /node_modules[\\\/](?:monaco-editor|@monaco-editor)[\\\/]/,
+              priority: 15,
+            },
+            {
+              name: 'echarts-vendor',
+              test: /node_modules[\\\/](?:echarts|echarts-for-react)[\\\/]/,
+              priority: 15,
+            },
+          ],
+        },
+      },
+    },
+  },
 })

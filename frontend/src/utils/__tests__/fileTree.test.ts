@@ -3,18 +3,18 @@ import { buildFileTree } from '../fileTree'
 import type { ProjectFile, ReviewIssue } from '../../types'
 
 const makeFile = (overrides: Partial<ProjectFile> & { id: string; file_path: string }): ProjectFile => ({
-  project: 'proj-1',
-  file_path: overrides.file_path,
-  language: overrides.language ?? 'python',
-  line_count: overrides.line_count ?? 10,
+  language: 'python',
+  line_count: 10,
   is_vendor: false,
   is_generated: false,
+  file_size: 100,
+  created_at: '',
+  updated_at: '',
   ...overrides,
 })
 
 const makeIssue = (file_path: string): ReviewIssue => ({
   id: `issue-${file_path}`,
-  review: 'rev-1',
   file_path,
   start_line: 1,
   end_line: 5,
@@ -27,7 +27,6 @@ const makeIssue = (file_path: string): ReviewIssue => ({
   fix_snippet: '',
   confidence: 0.9,
   created_at: '',
-  updated_at: '',
 })
 
 describe('buildFileTree', () => {

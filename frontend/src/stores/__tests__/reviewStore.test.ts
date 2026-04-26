@@ -58,10 +58,10 @@ describe('reviewStore', () => {
   })
 
   it('fetchIssues updates issues list', async () => {
-    const issues = [{ id: 'i1', review: 'r1', file_path: 'a.py', start_line: 1, end_line: 5, severity: 'high' as const, dimension: 'security' as const, title: 'X', description: 'd', suggestion: '', code_snippet: '', fix_snippet: '', confidence: 0.9, created_at: '', updated_at: '' }]
+    const issues = [{ id: 'i1', file_path: 'a.py', start_line: 1, end_line: 5, severity: 'high' as const, dimension: 'security' as const, title: 'X', description: 'd', suggestion: '', code_snippet: '', fix_snippet: '', confidence: 0.9, created_at: '' }]
     vi.mocked(api.fetchIssues).mockResolvedValue({
       data: issues,
-      meta: { total: 1, page: 1, limit: 20 },
+      pagination: { count: 1, next: null, previous: null },
     } as Awaited<ReturnType<typeof api.fetchIssues>>)
 
     await useReviewStore.getState().fetchIssues('r1')
@@ -124,7 +124,7 @@ describe('reviewStore', () => {
 
   it('updateReviewProgress sets status to failed and fetches issues on completed', () => {
     vi.mocked(api.fetchIssues).mockResolvedValue({
-      data: [], meta: { total: 0, page: 1, limit: 20 },
+      data: [], pagination: { count: 0, next: null, previous: null },
     } as Awaited<ReturnType<typeof api.fetchIssues>>)
 
     useReviewStore.setState({ currentReview: { ...mockReview, id: 'r1' } as any })

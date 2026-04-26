@@ -13,7 +13,9 @@ import * as api from '../../api/projects'
 
 const mockProject = {
   id: 'p1', name: 'TestProject', status: 'ready' as const,
-  project_type: 'python', created_at: '', updated_at: '',
+  project_type: 'python' as const, detected_languages: {}, detected_frameworks: [],
+  total_files: 0, total_lines: 0, error_message: null, files_count: 0,
+  created_at: '', updated_at: '',
 }
 
 describe('projectStore', () => {
@@ -25,7 +27,7 @@ describe('projectStore', () => {
   })
 
   it('uploadFile adds project to list', async () => {
-    vi.mocked(api.uploadProject).mockResolvedValue(mockProject as ReturnType<typeof api.uploadProject>)
+    vi.mocked(api.uploadProject).mockResolvedValue(mockProject as Awaited<ReturnType<typeof api.uploadProject>>)
 
     const file = new File(['x'], 'test.zip')
     const result = await useProjectStore.getState().uploadFile('TestProject', file)
@@ -46,7 +48,7 @@ describe('projectStore', () => {
   it('fetchProjects updates projects list', async () => {
     vi.mocked(api.fetchProjects).mockResolvedValue({
       data: [mockProject],
-      meta: { total: 1, page: 1, limit: 20 },
+      pagination: { count: 1, next: null, previous: null },
     } as Awaited<ReturnType<typeof api.fetchProjects>>)
 
     await useProjectStore.getState().fetchProjects()
@@ -73,7 +75,7 @@ describe('projectStore', () => {
   })
 
   it('fetchFiles sets fileList', async () => {
-    const files = [{ id: 'f1', project: 'p1', file_path: 'a.py', language: 'python', line_count: 10, is_vendor: false, is_generated: false }]
+    const files = [{ id: 'f1', file_path: 'a.py', language: 'python', line_count: 10, is_vendor: false, is_generated: false, file_size: 100, created_at: '', updated_at: '' }]
     vi.mocked(api.fetchProjectFiles).mockResolvedValue(files as Awaited<ReturnType<typeof api.fetchProjectFiles>>)
 
     await useProjectStore.getState().fetchFiles('p1')
