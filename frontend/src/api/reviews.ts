@@ -31,3 +31,20 @@ export function fetchReport(reviewId: string, output: 'json' | 'markdown' = 'jso
   }
   return extractData<ReviewReport>(client.get(`/reviews/${reviewId}/report/`, { params: { output: 'json' } }))
 }
+
+export async function downloadReport(reviewId: string, projectName: string): Promise<void> {
+  const response = await client.get(`/reviews/${reviewId}/report/`, {
+    params: { output: 'markdown' },
+  })
+  const mdContent = response.data?.data?.content ?? response.data
+  const safeName = projectName.replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, '-')
+  const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${safeName}-review-report.md`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}

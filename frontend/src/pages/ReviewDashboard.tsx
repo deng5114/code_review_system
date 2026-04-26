@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Card, Progress, Statistic, Row, Col, Space, Tag, List, Spin, Typography, Button, Select, Empty,
+  Card, Progress, Statistic, Row, Col, Space, Tag, List, Spin, Typography, Button, Empty, message,
 } from 'antd'
-import { CodeOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { CodeOutlined, ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useReviewStore } from '../stores/reviewStore'
 import { SEVERITY_CONFIG, DIMENSION_LABELS } from '../utils/constants'
-import type { Severity, Dimension, ReviewIssue } from '../types'
+import { downloadReport } from '../api/reviews'
+import FilterPanel from '../components/FilterPanel'
+import SeverityBarChart from '../components/charts/SeverityBarChart'
+import DimensionRadarChart from '../components/charts/DimensionRadarChart'
+import type { Severity, ReviewIssue, IssueFilters } from '../types'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -44,8 +48,15 @@ export default function ReviewDashboard() {
     fetchReview, fetchIssues, pollReviewProgress, stopPolling,
   } = useReviewStore()
 
-  const [severityFilter, setSeverityFilter] = useState<Severity[]>([])
-  const [dimensionFilter, setDimensionFilter] = useState<Dimension[]>([])
+  const [filters, setFilters] = useState<IssueFilters>({})
+  const [exporting, setExporting] = useState(false)
+  const allIssuesRef = useRef<ReviewIssue[]>([])
+
+  useEffect(() => {
+    if (issues.length > 0 && !filters.severity?.length && !filters.dimension?.length && !filters.file_path && !filters.search) {
+      allIssuesRef.current = issues
+    }
+  }, [issues])
 
   useEffect(() => {
     if (!id) return
@@ -62,10 +73,41 @@ export default function ReviewDashboard() {
     }
   }, [currentReview?.status])
 
+  const [initialized, setInitialized] = useState(false)
+
   useEffect(() => {
-    if (!id || !currentReview || currentReview.status !== 'completed') return
-    fetchIssues(id, { severity: severityFilter.length ? severityFilter : undefined, dimension: dimensionFilter.length ? dimensionFilter : undefined })
-  }, [severityFilter, dimensionFilter])
+    if (!id || !currentReview || currentReview.status !== 'completed' || initialized) return
+    setInitialized(true)
+  }, [currentReview?.status])
+
+  useEffect(() => {
+    if (!id || !currentReview || currentReview.status !== 'completed' || !initialized) return
+    const hasFilters = filters.severity?.length || filters.dimension?.length || filters.file_path || filters.search
+    fetchIssues(id, hasFilters ? filters : undefined)
+  }, [filters, initialized])
+
+  const allIssues = allIssuesRef.current
+  const availableFiles = useMemo(
+    () => [...new Set((allIssues.length > 0 ? allIssues : issues).map((i) => i.file_path))].sort(),
+    [allIssues, issues]
+  )
+
+  const handleFilterChange = useCallback((newFilters: IssueFilters) => {
+    setFilters(newFilters)
+  }, [])
+
+  const handleExport = useCallback(async () => {
+    if (!currentReview) return
+    setExporting(true)
+    try {
+      await downloadReport(currentReview.id, currentReview.project_name)
+      message.success('报告已导出')
+    } catch {
+      message.error('导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }, [currentReview])
 
   if (loading && !currentReview) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
   if (!currentReview) return <Text>审查不存在</Text>
@@ -87,6 +129,15 @@ export default function ReviewDashboard() {
           <Tag color={isCompleted ? 'green' : isInProgress ? 'blue' : 'red'}>
             {isInProgress ? '进行中' : isCompleted ? '已完成' : '失败'}
           </Tag>
+          {isCompleted && (
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExport}
+              loading={exporting}
+            >
+              导出报告
+            </Button>
+          )}
         </Space>
 
         {isInProgress && (
@@ -122,31 +173,32 @@ export default function ReviewDashboard() {
 
       {isCompleted && (
         <>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Card title="严重性分布" size="small">
+                <SeverityBarChart
+                  critical={currentReview.critical_count}
+                  high={currentReview.high_count}
+                  medium={currentReview.medium_count}
+                  low={currentReview.low_count}
+                />
+              </Card>
+            </Col>
+            <Col span={12}>
+              <Card title="维度分布" size="small">
+                <DimensionRadarChart issues={allIssues.length > 0 ? allIssues : issues} />
+              </Card>
+            </Col>
+          </Row>
+
           <Card title="筛选">
-            <Space wrap>
-              <Select
-                mode="multiple"
-                placeholder="严重性筛选"
-                style={{ minWidth: 200 }}
-                value={severityFilter}
-                onChange={setSeverityFilter}
-                options={(Object.entries(SEVERITY_CONFIG) as [Severity, { label: string }][]).map(([k, v]) => ({
-                  value: k, label: v.label,
-                }))}
-                allowClear
-              />
-              <Select
-                mode="multiple"
-                placeholder="维度筛选"
-                style={{ minWidth: 200 }}
-                value={dimensionFilter}
-                onChange={setDimensionFilter}
-                options={(Object.entries(DIMENSION_LABELS) as [Dimension, string][]).map(([k, v]) => ({
-                  value: k, label: v,
-                }))}
-                allowClear
-              />
-            </Space>
+            <FilterPanel
+              filters={filters}
+              onChange={handleFilterChange}
+              availableFiles={availableFiles}
+              totalIssues={currentReview.total_issues}
+              filteredCount={issues.length}
+            />
           </Card>
 
           <Card title={`问题列表 (${issues.length})`}>

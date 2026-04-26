@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -84,13 +85,22 @@ class ReviewViewSet(viewsets.GenericViewSet):
 
         severity = request.query_params.get("severity")
         if severity:
-            queryset = queryset.filter(severity=severity)
+            severities = [s.strip() for s in severity.split(",") if s.strip()]
+            if severities:
+                queryset = queryset.filter(severity__in=severities)
         dimension = request.query_params.get("dimension")
         if dimension:
-            queryset = queryset.filter(dimension=dimension)
+            dimensions = [d.strip() for d in dimension.split(",") if d.strip()]
+            if dimensions:
+                queryset = queryset.filter(dimension__in=dimensions)
         file_path = request.query_params.get("file_path")
         if file_path:
             queryset = queryset.filter(file_path__icontains=file_path)
+        search = request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) | Q(description__icontains=search)
+            )
 
         page = self.paginate_queryset(queryset)
         if page is not None:

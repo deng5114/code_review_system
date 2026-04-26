@@ -167,6 +167,72 @@ class TestReviewIssues:
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
 
+    def test_filter_by_multiple_severities(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?severity=critical,high"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 2
+
+    def test_filter_by_severity_with_trailing_comma(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?severity=critical,"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 1
+        assert resp.data["data"][0]["severity"] == "critical"
+
+    def test_filter_by_multiple_dimensions(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?dimension=security,performance"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 2
+
+    def test_filter_empty_severity(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?severity="
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 2
+
+    def test_search_by_title(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?search=SQL"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 1
+        assert resp.data["data"][0]["title"] == "SQL Injection"
+
+    def test_search_by_description(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?search=sanitized"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 1
+
+    def test_search_case_insensitive(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?search=sql"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 1
+
+    def test_search_no_results(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?search=nonexistent"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 0
+
+    def test_combined_severity_and_search(self, api_client, review_with_issues):
+        resp = api_client.get(
+            f"/api/reviews/{review_with_issues.id}/issues/?severity=critical&search=SQL"
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["data"]) == 1
+        assert resp.data["data"][0]["severity"] == "critical"
+
     def test_empty_issues(self, api_client, review):
         resp = api_client.get(f"/api/reviews/{review.id}/issues/")
         assert resp.status_code == status.HTTP_200_OK
