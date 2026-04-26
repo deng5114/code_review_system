@@ -2,6 +2,7 @@ import logging
 from typing import Callable
 
 from apps.ai.services.llm_adapter import LLMAdapter, LLMCallError, LLMConfig
+from apps.ai.services.llm_call_manager import LLMCallManager
 from apps.ai.services.prompt_engine import PromptEngine
 from apps.ai.services.response_parser import ResponseParser
 from apps.reviews.services.chunk_manager import ChunkManager
@@ -11,11 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewEngine:
-    def __init__(self, context_window: int = 128000) -> None:
+    def __init__(
+        self,
+        context_window: int = 128000,
+        llm_manager: LLMCallManager | None = None,
+    ) -> None:
         self._chunk_manager = ChunkManager(context_window=context_window)
         self._prompt_engine = PromptEngine()
         self._response_parser = ResponseParser()
         self._result_aggregator = ResultAggregator()
+        self._llm_manager = llm_manager or LLMCallManager(LLMAdapter(max_retries=3))
 
     def run_review(
         self,
@@ -24,10 +30,12 @@ class ReviewEngine:
         frameworks: list[str],
         files: list[dict],
         ai_config: LLMConfig,
+        fallback_configs: list[LLMConfig] | None = None,
         custom_instructions: str = "",
         progress_callback: Callable[[int, str], None] | None = None,
     ) -> dict:
         total_files = len(files)
+        fallbacks = fallback_configs or []
 
         def _progress(pct: int, msg: str) -> None:
             if progress_callback:
@@ -47,7 +55,6 @@ class ReviewEngine:
             total_chunks = len(chunks)
 
             # Stage 5-6: AI review each chunk
-            adapter = LLMAdapter(max_retries=3)
             all_parsed_issues = []
             all_summaries = []
 
@@ -64,13 +71,23 @@ class ReviewEngine:
                     total_files=total_files,
                 )
 
-                llm_result = adapter.chat_completion(
-                    config=ai_config,
+                llm_result = self._llm_manager.chat_completion(
+                    primary_config=ai_config,
+                    fallback_configs=fallbacks,
                     messages=[
                         {"role": "system", "content": prompt_result["system_prompt"]},
                         {"role": "user", "content": prompt_result["user_prompt"]},
                     ],
                 )
+
+                for log_entry in self._llm_manager.fallback_logs:
+                    logger.info(
+                        "Chunk %d fallback: %s -> %s (attempt %d)",
+                        i + 1,
+                        log_entry.original_config,
+                        log_entry.fallback_config,
+                        log_entry.attempt,
+                    )
 
                 parsed = self._response_parser.parse(llm_result.content)
                 all_parsed_issues.extend(parsed.issues)

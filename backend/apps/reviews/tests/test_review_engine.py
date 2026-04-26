@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from apps.ai.services.llm_adapter import LLMConfig, LLMResult
 from apps.ai.services.response_parser import ParsedIssue, ParsedReviewResponse
 from apps.reviews.services.review_engine import ReviewEngine
 
@@ -28,6 +29,16 @@ def _make_llm_response():
     )
 
 
+def _make_llm_config():
+    return LLMConfig(
+        provider="openai",
+        model_name="gpt-4o",
+        api_key="sk-test",
+        base_url="",
+        extra_settings={},
+    )
+
+
 @pytest.fixture
 def mock_engine():
     engine = ReviewEngine()
@@ -35,11 +46,11 @@ def mock_engine():
 
 
 class TestReviewEngineFullPipeline:
-    @patch("apps.reviews.services.review_engine.LLMAdapter")
+    @patch("apps.reviews.services.review_engine.LLMCallManager")
     @patch("apps.reviews.services.review_engine.ResponseParser")
     @patch("apps.reviews.services.review_engine.PromptEngine")
     def test_full_pipeline_small_project(
-        self, MockPromptEngine, MockResponseParser, MockLLMAdapter
+        self, MockPromptEngine, MockResponseParser, MockLLMCallManager,
     ):
         engine = ReviewEngine()
 
@@ -49,11 +60,9 @@ class TestReviewEngineFullPipeline:
             "user_prompt": "user",
         }
 
-        llm_adapter = MockLLMAdapter.return_value
-        llm_result = MagicMock()
-        llm_result.content = "response text"
-        llm_result.total_tokens = 100
-        llm_adapter.chat_completion.return_value = llm_result
+        llm_manager = MockLLMCallManager.return_value
+        llm_manager.chat_completion.return_value = LLMResult(content="response text", total_tokens=100)
+        llm_manager.fallback_logs = []
 
         response_parser = MockResponseParser.return_value
         response_parser.parse.return_value = _make_llm_response()
@@ -63,7 +72,7 @@ class TestReviewEngineFullPipeline:
             primary_language="Python",
             frameworks=["django"],
             files=_make_project_files(),
-            ai_config=_mock_ai_config(),
+            ai_config=_make_llm_config(),
             custom_instructions="",
         )
 
@@ -74,11 +83,11 @@ class TestReviewEngineFullPipeline:
         assert result["stats"]["total"] == 1
         assert result["stats"]["high_count"] == 1
 
-    @patch("apps.reviews.services.review_engine.LLMAdapter")
+    @patch("apps.reviews.services.review_engine.LLMCallManager")
     @patch("apps.reviews.services.review_engine.ResponseParser")
     @patch("apps.reviews.services.review_engine.PromptEngine")
     def test_llm_failure_returns_failed(
-        self, MockPromptEngine, MockResponseParser, MockLLMAdapter
+        self, MockPromptEngine, MockResponseParser, MockLLMCallManager,
     ):
         from apps.ai.services.llm_adapter import LLMCallError
 
@@ -88,25 +97,25 @@ class TestReviewEngineFullPipeline:
             "system_prompt": "s", "user_prompt": "u",
         }
 
-        llm_adapter = MockLLMAdapter.return_value
-        llm_adapter.chat_completion.side_effect = LLMCallError("API timeout")
+        llm_manager = MockLLMCallManager.return_value
+        llm_manager.chat_completion.side_effect = LLMCallError("API timeout")
 
         result = engine.run_review(
             project_type="python",
             primary_language="Python",
             frameworks=[],
             files=_make_project_files(),
-            ai_config=_mock_ai_config(),
+            ai_config=_make_llm_config(),
         )
 
         assert result["status"] == "failed"
         assert "API timeout" in result["error_message"]
 
-    @patch("apps.reviews.services.review_engine.LLMAdapter")
+    @patch("apps.reviews.services.review_engine.LLMCallManager")
     @patch("apps.reviews.services.review_engine.ResponseParser")
     @patch("apps.reviews.services.review_engine.PromptEngine")
     def test_multi_chunk_review(
-        self, MockPromptEngine, MockResponseParser, MockLLMAdapter
+        self, MockPromptEngine, MockResponseParser, MockLLMCallManager,
     ):
         engine = ReviewEngine(context_window=100)
 
@@ -115,11 +124,9 @@ class TestReviewEngineFullPipeline:
             "system_prompt": "s", "user_prompt": "u",
         }
 
-        llm_adapter = MockLLMAdapter.return_value
-        llm_result = MagicMock()
-        llm_result.content = "response"
-        llm_result.total_tokens = 50
-        llm_adapter.chat_completion.return_value = llm_result
+        llm_manager = MockLLMCallManager.return_value
+        llm_manager.chat_completion.return_value = LLMResult(content="response", total_tokens=50)
+        llm_manager.fallback_logs = []
 
         response_parser = MockResponseParser.return_value
         response_parser.parse.return_value = ParsedReviewResponse(
@@ -136,29 +143,27 @@ class TestReviewEngineFullPipeline:
             primary_language="Python",
             frameworks=[],
             files=files,
-            ai_config=_mock_ai_config(),
+            ai_config=_make_llm_config(),
         )
 
         assert result["status"] == "completed"
-        assert llm_adapter.chat_completion.call_count > 1
+        assert llm_manager.chat_completion.call_count > 1
 
 
 class TestReviewEngineProgress:
-    @patch("apps.reviews.services.review_engine.LLMAdapter")
+    @patch("apps.reviews.services.review_engine.LLMCallManager")
     @patch("apps.reviews.services.review_engine.ResponseParser")
     @patch("apps.reviews.services.review_engine.PromptEngine")
     def test_progress_callback_called(
-        self, MockPromptEngine, MockResponseParser, MockLLMAdapter
+        self, MockPromptEngine, MockResponseParser, MockLLMCallManager,
     ):
         engine = ReviewEngine()
         prompt_engine = MockPromptEngine.return_value
         prompt_engine.build_review_prompt.return_value = {"system_prompt": "s", "user_prompt": "u"}
 
-        llm_adapter = MockLLMAdapter.return_value
-        llm_result = MagicMock()
-        llm_result.content = "ok"
-        llm_result.total_tokens = 10
-        llm_adapter.chat_completion.return_value = llm_result
+        llm_manager = MockLLMCallManager.return_value
+        llm_manager.chat_completion.return_value = LLMResult(content="ok", total_tokens=10)
+        llm_manager.fallback_logs = []
 
         response_parser = MockResponseParser.return_value
         response_parser.parse.return_value = ParsedReviewResponse(summary="OK", issues=[])
@@ -172,20 +177,9 @@ class TestReviewEngineProgress:
             primary_language="Python",
             frameworks=[],
             files=_make_project_files(),
-            ai_config=_mock_ai_config(),
+            ai_config=_make_llm_config(),
             progress_callback=on_progress,
         )
 
         assert len(progress_calls) > 0
         assert progress_calls[-1][0] == 100
-
-
-def _mock_ai_config():
-    from apps.ai.services.llm_adapter import LLMConfig
-    return LLMConfig(
-        provider="openai",
-        model_name="gpt-4o",
-        api_key="sk-test",
-        base_url="",
-        extra_settings={},
-    )

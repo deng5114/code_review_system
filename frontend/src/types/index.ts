@@ -131,6 +131,8 @@ export interface AIConfig {
   base_url: string
   is_default: boolean
   is_active: boolean
+  priority: number
+  fallback_enabled: boolean
   extra_settings: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -144,6 +146,8 @@ export interface AIConfigCreate {
   base_url?: string
   is_default?: boolean
   is_active?: boolean
+  priority?: number
+  fallback_enabled?: boolean
   extra_settings?: Record<string, unknown>
 }
 

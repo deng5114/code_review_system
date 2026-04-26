@@ -12,8 +12,8 @@ class AIConfigSerializer(serializers.ModelSerializer):
         fields = [
             "id", "provider", "display_name", "api_key",
             "masked_api_key", "model_name", "base_url",
-            "is_default", "is_active", "extra_settings",
-            "created_at", "updated_at",
+            "is_default", "is_active", "priority", "fallback_enabled",
+            "extra_settings", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "masked_api_key", "created_at", "updated_at"]
 

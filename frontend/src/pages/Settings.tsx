@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
-  Card, Table, Button, Modal, Form, Input, Select, Switch, Space, Tag, message, Popconfirm, Typography,
+  Card, Table, Button, Modal, Form, Input, Select, Switch, Space, Tag, message, Popconfirm, Typography, InputNumber, Tooltip,
 } from 'antd'
-import { PlusOutlined, ApiOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, ApiOutlined, DeleteOutlined, EditOutlined, SafetyCertificateOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { useConfigStore } from '../stores/configStore'
 import { PROVIDER_LABELS, PROVIDER_MODELS } from '../utils/constants'
 import type { AIConfig, AIProvider } from '../types'
@@ -35,6 +35,8 @@ export default function Settings() {
       base_url: config.base_url,
       is_default: config.is_default,
       is_active: config.is_active,
+      priority: config.priority,
+      fallback_enabled: config.fallback_enabled,
     })
     setModalOpen(true)
   }
@@ -85,6 +87,14 @@ export default function Settings() {
     {
       title: '默认', dataIndex: 'is_default', key: 'default',
       render: (v: boolean) => v ? <Tag color="blue">默认</Tag> : null,
+    },
+    {
+      title: '优先级', dataIndex: 'priority', key: 'priority',
+      render: (v: number) => v > 0 ? <Tag color="orange">{v}</Tag> : <Text type="secondary">-</Text>,
+    },
+    {
+      title: '降级', dataIndex: 'fallback_enabled', key: 'fallback',
+      render: (v: boolean) => v ? <Tag color="green" icon={<SafetyCertificateOutlined />}>备用</Tag> : null,
     },
     {
       title: '操作', key: 'actions',
@@ -153,6 +163,35 @@ export default function Settings() {
             <Switch />
           </Form.Item>
           <Form.Item name="is_active" label="启用" valuePropName="checked" initialValue={true}>
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="priority"
+            label={
+              <Space>
+                优先级
+                <Tooltip title="数值越大优先级越高。降级时按优先级从高到低选择备用配置">
+                  <QuestionCircleOutlined style={{ color: '#999' }} />
+                </Tooltip>
+              </Space>
+            }
+            initialValue={0}
+          >
+            <InputNumber min={0} max={100} style={{ width: '100%' }} placeholder="0" />
+          </Form.Item>
+          <Form.Item
+            name="fallback_enabled"
+            label={
+              <Space>
+                启用降级
+                <Tooltip title="启用后该配置可作为其他配置的降级备用模型">
+                  <QuestionCircleOutlined style={{ color: '#999' }} />
+                </Tooltip>
+              </Space>
+            }
+            valuePropName="checked"
+            initialValue={false}
+          >
             <Switch />
           </Form.Item>
         </Form>

@@ -1,0 +1,22 @@
+## Python 语言专项审查指南
+
+### 常见安全问题
+- SQL 注入：检查是否使用参数化查询（避免 f-string/format 拼接 SQL）
+- 命令注入：检查 os.system/subprocess 是否拼接用户输入
+- Pickle 反序列化：避免对不可信数据使用 pickle.loads
+- 路径遍历：检查文件操作是否拼接用户输入路径
+- YAML 加载：使用 yaml.safe_load 替代 yaml.load
+
+### 框架审查重点
+- **Django**: 检查 CSRF 中间件、SECRET_KEY 硬编码、QuerySet 的 select_related/prefetch_related、N+1 查询、raw SQL 注入
+- **Flask**: 检查 DEBUG 模式配置、session secret、Jinja2 自动转义
+- **FastAPI**: 检查依赖注入正确性、Pydantic 模型验证、async 函数中的阻塞操作
+
+### 最佳实践
+- 使用 type hints 标注函数签名和返回值
+- 优先使用 pathlib 替代 os.path
+- 异常处理要具体，避免裸 except
+- 使用 f-string 替代 %-formatting 和 str.format
+- 遵循 PEP 8 命名规范（snake_case 变量/函数，PascalCase 类名）
+- 上下文管理器管理资源（with 语句）
+- 使用 dataclass 或 NamedTuple 替代普通类定义数据结构

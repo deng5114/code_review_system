@@ -1,0 +1,23 @@
+## Go 语言专项审查指南
+
+### 常见安全问题
+- 竞态条件：检查共享数据的并发访问是否使用 mutex/channel 保护
+- 资源泄露：检查 goroutine 泄露、文件/连接未关闭
+- 命令注入：检查 exec.Command 是否拼接用户输入
+- 路径遍历：检查 filepath.Join 是否处理 ../ 路径
+- SQL 注入：检查 database/sql 是否使用占位符参数
+
+### 框架审查重点
+- **Gin/Echo**: 检查中间件链顺序、路由参数绑定和验证、错误响应格式
+- **gRPC**: 检查 Protobuf 定义合理性、超时配置、流式处理资源管理
+- **标准库 net/http**: 检查 Handler 超时配置、请求体大小限制、TLS 配置
+
+### 最佳实践
+- 错误处理：显式检查每个 error，避免忽略返回值
+- 使用 context.Context 传递超时和取消信号，不用于存储业务数据
+- 接口定义在消费方而非提供方（Go 的隐式接口）
+- 切片预分配（make）避免频繁扩容
+- 使用 defer 确保资源释放
+- 避免 panic，使用 error 返回值
+- 结构体方法按值/指针接收器一致使用
+- 并发使用 errgroup 或 sync.WaitGroup 管理 goroutine 生命周期

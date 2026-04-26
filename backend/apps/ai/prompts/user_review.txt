@@ -7,6 +7,12 @@
 {% if frameworks %}- **框架**: {{ frameworks | join(', ') }}{% endif %}
 {% if total_files %}- **文件数量**: {{ total_files }}{% endif %}
 
+{% if language_guidance %}
+## 语言专项审查指南
+
+{{ language_guidance }}
+{% endif %}
+
 ## 待审查代码
 
 {% for file in files %}

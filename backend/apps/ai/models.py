@@ -1,5 +1,6 @@
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.common.models import TimestampMixin, UUIDMixin
@@ -31,6 +32,17 @@ class AIConfig(UUIDMixin, TimestampMixin):
     )
     is_default = models.BooleanField(default=False, verbose_name="默认配置")
     is_active = models.BooleanField(default=True, verbose_name="启用")
+    priority = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="优先级",
+        help_text="数值越大优先级越高，降级时按优先级从高到低选择备用配置",
+    )
+    fallback_enabled = models.BooleanField(
+        default=False,
+        verbose_name="启用降级",
+        help_text="启用后该配置可作为其他配置的降级备用",
+    )
     extra_settings = models.JSONField(default=dict, blank=True, verbose_name="额外设置")
 
     class Meta:

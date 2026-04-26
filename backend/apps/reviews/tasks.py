@@ -14,6 +14,7 @@ def start_review_task(self, review_id: str) -> None:
 
     from apps.ai.models import AIConfig
     from apps.ai.services.llm_adapter import LLMConfig
+    from apps.ai.services.llm_call_manager import LLMCallManager
     from apps.projects.models import ProjectFile
     from apps.reviews.models import Review, ReviewIssue, ReviewStatus
 
@@ -55,7 +56,15 @@ def start_review_task(self, review_id: str) -> None:
         if not ai_config_obj:
             raise ValueError("No active AI configuration found")
 
-        ai_config = LLMConfig.from_ai_config(ai_config_obj)
+        primary_llm_config = LLMConfig.from_ai_config(ai_config_obj)
+
+        fallback_configs = LLMCallManager.build_fallback_chain(
+            list(
+                AIConfig.objects.filter(
+                    is_active=True, fallback_enabled=True,
+                ).exclude(pk=ai_config_obj.pk).order_by("-priority")[:5]
+            )
+        )
 
         # Run review
         def on_progress(pct, msg):
@@ -71,7 +80,8 @@ def start_review_task(self, review_id: str) -> None:
             primary_language=(project.detected_languages or ["unknown"])[0] if project.detected_languages else "unknown",
             frameworks=project.detected_frameworks or [],
             files=files,
-            ai_config=ai_config,
+            ai_config=primary_llm_config,
+            fallback_configs=fallback_configs,
             custom_instructions=review.custom_instructions,
             progress_callback=on_progress,
         )

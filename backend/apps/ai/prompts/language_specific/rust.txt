@@ -1,0 +1,24 @@
+## Rust 语言专项审查指南
+
+### 常见安全问题
+- unsafe 块：检查 unsafe 使用是否必要且有安全注释
+- 内存安全：检查裸指针解引用、transmute 使用
+- 整数溢出：检查算术运算是否使用 checked/wrapping/saturating 方法
+- panic 风险：检查 unwrap/expect 在生产代码中的使用
+- FFI 边界：检查与 C 代码交互时的内存所有权
+
+### 框架审查重点
+- **Tokio/async-std**: 检查异步运行时配置、任务取消处理、阻塞操作是否 spawn_blocking
+- **Actix/axum**: 检查中间件层叠顺序、提取器错误处理、状态管理
+- **Serde**: 检查反序列化边界、 deny_unknown_fields 配置
+- **Diesel/SQLx**: 检查查询构建安全性、连接池配置、事务处理
+
+### 最佳实践
+- 优先使用 Result<T, E> 而非 panic 进行错误传播
+- 使用 thiserror/anyhow 统一错误类型
+- 避免 clone() 过度使用，优先使用引用和生命周期
+- 使用 Cow<str> 处理可能需要或不需要所有权的字符串
+- 使用 Clippy lint 并处理所有警告
+- 模块化设计：合理使用 pub(crate) 控制可见性
+- trait 实现保持一致性（Ord/Eq/Hash 关系）
+- 使用 cargo deny 检查依赖许可证和安全漏洞

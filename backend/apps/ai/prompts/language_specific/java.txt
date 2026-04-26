@@ -1,0 +1,23 @@
+## Java 语言专项审查指南
+
+### 常见安全问题
+- SQL 注入：检查 Statement vs PreparedStatement 使用
+- 反序列化漏洞：检查 ObjectInputStream 对不可信数据的处理
+- XML 外部实体注入（XXE）：检查 XML 解析器配置
+- 日志注入：检查用户输入是否直接拼入日志
+- 不安全的随机数：检查安全场景是否使用 SecureRandom
+
+### 框架审查重点
+- **Spring Boot**: 检查 @Transactional 边界和自调用问题、Actuator 端点暴露、Security 配置、依赖注入范围（@Scope）
+- **MyBatis/JPA**: 检查 N+1 查询、懒加载配置、SQL 注入（${} vs #{}）
+- **Maven/Gradle**: 检查依赖版本管理、插件配置安全性
+
+### 最佳实践
+- 使用 Optional 替代 null 返回值，避免 Optional 作为字段或方法参数
+- 集合使用泛型，避免原始类型
+- 异常处理：catch 具体异常类型，不要 catch Exception 或 Throwable
+- 字符串比较使用常量.equals(variable) 避免 NPE
+- 资源使用 try-with-resources 自动关闭
+- 避免在循环中创建大量对象（字符串拼接用 StringBuilder）
+- 并发使用 java.util.concurrent 包，避免 synchronized 的粗粒度锁
+- 日志使用 SLF4J/Logback 参数化格式（logger.info("user: {}", id)）
