@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as api from '../api/reviews'
 import type { Review, ReviewIssue, IssueFilters } from '../types'
+import type { ReviewProgressMessage } from '../hooks/useReviewWebSocket'
 import { POLL_INTERVAL } from '../utils/constants'
 
 interface ReviewStore {
@@ -18,6 +19,7 @@ interface ReviewStore {
   resetFilters: () => void
   pollReviewProgress: (id: string) => void
   stopPolling: () => void
+  updateReviewProgress: (reviewId: string, data: ReviewProgressMessage) => void
 }
 
 let pollingTimer: ReturnType<typeof setInterval> | null = null
@@ -99,5 +101,24 @@ export const useReviewStore = create<ReviewStore>((set, get) => ({
       pollingTimer = null
     }
     set({ polling: false })
+  },
+
+  updateReviewProgress: (reviewId, data) => {
+    const review = get().currentReview
+    if (!review || review.id !== reviewId) return
+
+    const updated: Review = {
+      ...review,
+      progress: data.progress,
+    }
+
+    if (data.status === 'completed' || data.status === 'failed') {
+      updated.status = data.status as Review['status']
+      if (data.status === 'completed') {
+        get().fetchIssues(reviewId)
+      }
+    }
+
+    set({ currentReview: updated })
   },
 }))

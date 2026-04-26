@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Card, Progress, Statistic, Row, Col, Space, Tag, List, Spin, Typography, Button, Empty, message,
 } from 'antd'
-import { CodeOutlined, ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons'
+import { CodeOutlined, ArrowLeftOutlined, DownloadOutlined, WifiOutlined, ApiOutlined } from '@ant-design/icons'
 import { useReviewStore } from '../stores/reviewStore'
+import { useReviewWebSocket } from '../hooks/useReviewWebSocket'
 import { SEVERITY_CONFIG, DIMENSION_LABELS } from '../utils/constants'
 import { downloadReport } from '../api/reviews'
 import FilterPanel from '../components/FilterPanel'
@@ -46,11 +47,23 @@ export default function ReviewDashboard() {
   const {
     currentReview, issues, loading,
     fetchReview, fetchIssues, pollReviewProgress, stopPolling,
+    updateReviewProgress,
   } = useReviewStore()
 
   const [filters, setFilters] = useState<IssueFilters>({})
   const [exporting, setExporting] = useState(false)
   const allIssuesRef = useRef<ReviewIssue[]>([])
+  const wsPollingStarted = useRef(false)
+
+  const isInProgress = currentReview?.status === 'pending' || currentReview?.status === 'running'
+
+  const { status: wsStatus } = useReviewWebSocket({
+    reviewId: id ?? '',
+    onMessage: useCallback((data) => {
+      if (id) updateReviewProgress(id, data)
+    }, [id, updateReviewProgress]),
+    enabled: isInProgress && !!id,
+  })
 
   useEffect(() => {
     if (issues.length > 0 && !filters.severity?.length && !filters.dimension?.length && !filters.file_path && !filters.search) {
@@ -67,11 +80,14 @@ export default function ReviewDashboard() {
   useEffect(() => {
     if (!currentReview) return
     if (currentReview.status === 'pending' || currentReview.status === 'running') {
-      pollReviewProgress(currentReview.id)
+      if (wsStatus === 'unavailable' && !wsPollingStarted.current) {
+        wsPollingStarted.current = true
+        pollReviewProgress(currentReview.id)
+      }
     } else if (currentReview.status === 'completed') {
       fetchIssues(currentReview.id)
     }
-  }, [currentReview?.status])
+  }, [currentReview?.status, wsStatus])
 
   const [initialized, setInitialized] = useState(false)
 
@@ -112,7 +128,6 @@ export default function ReviewDashboard() {
   if (loading && !currentReview) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
   if (!currentReview) return <Text>审查不存在</Text>
 
-  const isInProgress = currentReview.status === 'pending' || currentReview.status === 'running'
   const isCompleted = currentReview.status === 'completed'
   const isFailed = currentReview.status === 'failed'
 
@@ -141,11 +156,21 @@ export default function ReviewDashboard() {
         </Space>
 
         {isInProgress && (
-          <Progress
-            percent={currentReview.progress}
-            status="active"
-            format={(p) => `${p}%`}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Progress
+              percent={currentReview.progress}
+              status="active"
+              style={{ flex: 1 }}
+            />
+            <Space size={4}>
+              {wsStatus === 'connected' && (
+                <Tag icon={<WifiOutlined />} color="success">实时</Tag>
+              )}
+              {wsStatus === 'unavailable' && (
+                <Tag icon={<ApiOutlined />} color="warning">轮询</Tag>
+              )}
+            </Space>
+          </div>
         )}
 
         {isFailed && (

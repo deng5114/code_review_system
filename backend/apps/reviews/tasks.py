@@ -1,11 +1,32 @@
 import logging
 from datetime import datetime, timezone
 
+from asgiref.sync import async_to_sync
 from celery import shared_task
+from channels.layers import get_channel_layer
 
 from apps.reviews.services.review_engine import ReviewEngine
 
 logger = logging.getLogger(__name__)
+
+
+def _push_progress(review_id: str, progress: int, status: str, message: str = "") -> None:
+    """Push progress update to WebSocket group via Channel Layer."""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return
+        async_to_sync(channel_layer.group_send)(
+            f"review_progress_{review_id}",
+            {
+                "type": "review_progress",
+                "progress": progress,
+                "status": status,
+                "message": message,
+            },
+        )
+    except Exception:
+        logger.warning("Failed to push WebSocket progress for review %s", review_id)
 
 
 @shared_task(bind=True, max_retries=1)
@@ -30,6 +51,7 @@ def start_review_task(self, review_id: str) -> None:
         review.started_at = datetime.now(timezone.utc)
         review.progress = 0
         review.save(update_fields=["status", "started_at", "progress", "updated_at"])
+        _push_progress(review_id, 0, "running", "Review started")
 
         # Load project files
         project = review.project
@@ -71,6 +93,7 @@ def start_review_task(self, review_id: str) -> None:
             try:
                 review.progress = pct
                 review.save(update_fields=["progress", "updated_at"])
+                _push_progress(review_id, pct, "running", msg)
             except Exception:
                 logger.warning("Failed to update progress for review %s", review_id)
 
@@ -123,6 +146,7 @@ def start_review_task(self, review_id: str) -> None:
                     "medium_count", "low_count", "completed_at",
                     "progress", "updated_at",
                 ])
+            _push_progress(review_id, 100, "completed", "Review completed")
         else:
             review.status = ReviewStatus.FAILED
             review.error_message = result.get("error_message", "Unknown error")
@@ -130,6 +154,10 @@ def start_review_task(self, review_id: str) -> None:
                 "status", "error_message", "ai_model",
                 "ai_provider", "updated_at",
             ])
+            _push_progress(
+                review_id, 0, "failed",
+                result.get("error_message", "Unknown error"),
+            )
 
     except Exception as e:
         logger.exception("Review task failed: %s", e)
@@ -137,5 +165,6 @@ def start_review_task(self, review_id: str) -> None:
             review.status = ReviewStatus.FAILED
             review.error_message = str(e)[:2000]
             review.save(update_fields=["status", "error_message", "updated_at"])
+            _push_progress(review_id, 0, "failed", str(e)[:500])
         except Exception:
             logger.exception("Failed to update review status")
