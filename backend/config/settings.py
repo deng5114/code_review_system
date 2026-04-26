@@ -1,10 +1,13 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # SECURITY: 优先从环境变量读取，开发环境提供 fallback
 _is_dev = os.environ.get("DJANGO_DEVELOPMENT", "True") == "True"
+_is_eager = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
 if _is_dev:
     SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-dev-only-key-do-not-use-in-prod")
 else:
@@ -121,15 +124,26 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
+if _is_eager:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
 # --- Channels ---
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.environ.get("CHANNEL_REDIS_URL", "redis://localhost:6379/1")],
+if _is_eager:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [os.environ.get("CHANNEL_REDIS_URL", "redis://localhost:6379/1")],
+            },
+        },
+    }
 
 # --- Upload limits ---
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB in memory, rest uses temp file
