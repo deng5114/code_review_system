@@ -100,7 +100,7 @@ def start_review_task(self, review_id: str) -> None:
         engine = ReviewEngine()
         result = engine.run_review(
             project_type=project.project_type or "unknown",
-            primary_language=(project.detected_languages or ["unknown"])[0] if project.detected_languages else "unknown",
+            primary_language=next(iter(project.detected_languages), "unknown") if project.detected_languages else "unknown",
             frameworks=project.detected_frameworks or [],
             files=files,
             ai_config=primary_llm_config,

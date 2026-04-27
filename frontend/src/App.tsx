@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ConfigProvider, Spin } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import AppLayout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const Upload = lazy(() => import('./pages/Upload'))
 const ProjectOverview = lazy(() => import('./pages/ProjectOverview'))
@@ -22,18 +23,20 @@ export default function App() {
   return (
     <ConfigProvider locale={zhCN}>
       <BrowserRouter>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Upload />} />
-              <Route path="/upload" element={<Upload />} />
-              <Route path="/projects/:id" element={<ProjectOverview />} />
-              <Route path="/reviews/:id" element={<ReviewDashboard />} />
-              <Route path="/reviews/:id/code" element={<CodeViewer />} />
-              <Route path="/settings" element={<Settings />} />
-            </Route>
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Upload />} />
+                <Route path="/upload" element={<Upload />} />
+                <Route path="/projects/:id" element={<ProjectOverview />} />
+                <Route path="/reviews/:id" element={<ReviewDashboard />} />
+                <Route path="/reviews/:id/code" element={<CodeViewer />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </ConfigProvider>
   )

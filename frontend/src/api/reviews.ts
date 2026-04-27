@@ -1,5 +1,5 @@
 import client, { extractData } from './client'
-import type { Review, ReviewIssue, IssueFilters, ReviewReport, MarkdownReport, PaginatedData } from '../types'
+import type { Review, ReviewIssue, IssueFilters, ReviewReport, MarkdownReport, PaginatedData, Pagination } from '../types'
 
 export function createReview(projectId: string, customInstructions?: string) {
   return extractData<Review>(client.post('/reviews/', {
@@ -8,8 +8,19 @@ export function createReview(projectId: string, customInstructions?: string) {
   }))
 }
 
+async function extractPaginated<T>(promise: Promise<{ data: { success: boolean; data: T[]; pagination?: Pagination; error?: { message: string } } }>): Promise<PaginatedData<T>> {
+  const { data: body } = await promise
+  if (!body.success) {
+    throw new Error(body.error?.message ?? '请求失败')
+  }
+  return {
+    data: body.data,
+    pagination: body.pagination ?? { count: body.data.length, next: null, previous: null },
+  }
+}
+
 export function fetchReviews(params?: { project_id?: string; page?: number }) {
-  return extractData<PaginatedData<Review>>(client.get('/reviews/', { params }))
+  return extractPaginated<Review>(client.get('/reviews/', { params }))
 }
 
 export function fetchReview(id: string) {
@@ -22,7 +33,7 @@ export function fetchIssues(reviewId: string, filters?: IssueFilters) {
   if (filters?.dimension?.length) params.dimension = filters.dimension.join(',')
   if (filters?.file_path) params.file_path = filters.file_path
   if (filters?.search) params.search = filters.search
-  return extractData<PaginatedData<ReviewIssue>>(client.get(`/reviews/${reviewId}/issues/`, { params }))
+  return extractPaginated<ReviewIssue>(client.get(`/reviews/${reviewId}/issues/`, { params }))
 }
 
 export function fetchReport(reviewId: string, output: 'json' | 'markdown' = 'json') {

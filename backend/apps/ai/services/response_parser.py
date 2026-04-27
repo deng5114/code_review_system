@@ -126,7 +126,7 @@ class ResponseParser:
         return result
 
     def _build_response(self, data: dict) -> ParsedReviewResponse:
-        summary = data.get("summary", "")
+        summary = str(data.get("summary", ""))
         raw_issues = data.get("issues", [])
 
         if not isinstance(raw_issues, list):

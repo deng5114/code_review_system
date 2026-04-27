@@ -1,10 +1,13 @@
 import type { ProjectFile, ReviewIssue, TreeNode } from '../types'
 
 export function buildFileTree(files: ProjectFile[], issues?: ReviewIssue[]): TreeNode[] {
+  const normalize = (p: string) => p.replace(/\\/g, '/')
+
   const issueCount = new Map<string, number>()
   if (issues) {
     for (const issue of issues) {
-      issueCount.set(issue.file_path, (issueCount.get(issue.file_path) || 0) + 1)
+      const key = normalize(issue.file_path)
+      issueCount.set(key, (issueCount.get(key) || 0) + 1)
     }
   }
 
@@ -13,7 +16,8 @@ export function buildFileTree(files: ProjectFile[], issues?: ReviewIssue[]): Tre
 
   for (const file of files) {
     if (file.is_vendor || file.is_generated) continue
-    const parts = file.file_path.split('/')
+    const normPath = normalize(file.file_path)
+    const parts = normPath.split('/')
     let current = root
     let pathSoFar = ''
 
@@ -21,7 +25,7 @@ export function buildFileTree(files: ProjectFile[], issues?: ReviewIssue[]): Tre
       pathSoFar = pathSoFar ? `${pathSoFar}/${parts[i]}` : parts[i]
 
       if (i === parts.length - 1) {
-        const count = issueCount.get(file.file_path) || 0
+        const count = issueCount.get(normPath) || 0
         const node: TreeNode = {
           key: file.id,
           title: count > 0 ? `${parts[i]} (${count})` : parts[i],

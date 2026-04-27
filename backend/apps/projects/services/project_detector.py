@@ -103,24 +103,10 @@ class ProjectDetector:
 
     def _collect_files(self, project_dir: str) -> list[str]:
         """收集项目目录中的所有文件（排除 vendor 目录）"""
-        skip_dirs = {
-            "node_modules", "venv", ".venv", "env", ".env",
-            "__pycache__", ".git", ".svn", ".hg",
-            "vendor", "dist", "build", "out", "target",
-            ".tox", ".mypy_cache", ".pytest_cache",
-            "site-packages", ".gradle", ".idea", ".vscode",
-            "coverage", ".coverage", "htmlcov",
-        }
-        skip_extensions = {
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
-            ".mp3", ".mp4", ".wav", ".avi", ".mov",
-            ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar",
-            ".exe", ".dll", ".so", ".dylib", ".bin", ".obj", ".o",
-            ".pyc", ".pyo", ".class", ".jar",
-            ".woff", ".woff2", ".ttf", ".eot", ".otf",
-            ".pdf", ".doc", ".docx",
-            ".sqlite", ".db",
-        }
+        from apps.projects.services.file_filter import BINARY_EXTENSIONS, VENDOR_DIRECTORIES
+
+        skip_dirs = VENDOR_DIRECTORIES
+        skip_extensions = BINARY_EXTENSIONS
 
         files: list[str] = []
         for root, dirs, filenames in os.walk(project_dir):

@@ -115,6 +115,8 @@ class ZipParser:
                     # 路径穿越检查
                     if self._has_path_traversal(info.filename):
                         raise PathTraversalError(f"检测到路径穿越攻击: {info.filename}")
+                    if self._is_skip_entry(info.filename):
+                        continue
                     total_size += info.file_size
                     file_count += 1
                     if file_count > MAX_FILE_COUNT:
@@ -140,6 +142,8 @@ class ZipParser:
                     # 路径穿越检查
                     if self._has_path_traversal(member.name):
                         raise PathTraversalError(f"检测到路径穿越攻击: {member.name}")
+                    if self._is_skip_entry(member.name):
+                        continue
                     total_size += member.size
                     file_count += 1
                     if file_count > MAX_FILE_COUNT:
@@ -156,6 +160,16 @@ class ZipParser:
     def _has_path_traversal(self, path: str) -> bool:
         normalized = os.path.normpath(path).replace("\\", "/")
         return ".." in normalized.split("/")
+
+    def _is_skip_entry(self, path: str) -> bool:
+        """判断归档条目是否应跳过（vendor 目录或二进制文件）"""
+        normalized = os.path.normpath(path).replace("\\", "/")
+        parts = normalized.split("/")
+        for part in parts[:-1]:
+            if part in SKIP_DIRS:
+                return True
+        ext = os.path.splitext(parts[-1])[1].lower()
+        return ext in BINARY_EXTENSIONS
 
     def _find_project_root(self, extract_dir: str) -> str:
         """如果解压后只有一个顶层目录，则进入该目录"""
@@ -180,7 +194,7 @@ class ZipParser:
                 # 再次检查路径穿越
                 if self._has_path_traversal(rel_path):
                     continue
-                files.append(rel_path)
+                files.append(rel_path.replace("\\", "/"))
         return files
 
     def _calculate_total_size(self, project_root: str, file_list: list[str]) -> int:

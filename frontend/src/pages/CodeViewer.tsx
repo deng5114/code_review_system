@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { Card, Tree, Space, Tag, Typography, Empty, Button } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
@@ -26,6 +26,22 @@ const LANGUAGE_MAP: Record<string, string> = {
   html: 'html', css: 'css', json: 'json', yaml: 'yaml', markdown: 'markdown',
 }
 
+function getExpandedKeysForPath(filePath: string): string[] {
+  const normalized = filePath.replace(/\\/g, '/')
+  const parts = normalized.split('/')
+  const keys: string[] = []
+  let acc = ''
+  for (let i = 0; i < parts.length - 1; i++) {
+    acc = acc ? `${acc}/${parts[i]}` : parts[i]
+    keys.push(acc)
+  }
+  return keys
+}
+
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/')
+}
+
 export default function CodeViewer() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
@@ -36,8 +52,11 @@ export default function CodeViewer() {
   const [selectedFile, setSelectedFile] = useState<FileContent | null>(null)
   const [selectedIssue, setSelectedIssue] = useState<ReviewIssue | null>(null)
   const [fileIssues, setFileIssues] = useState<ReviewIssue[]>([])
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
   const editorRef = useRef<Parameters<NonNullable<Parameters<typeof MonacoEditor>[0]['onMount']>>[0]>(null)
   const decorationsRef = useRef<string[]>([])
+  const pendingScrollRef = useRef<ReviewIssue | null>(null)
 
   const stateIssueId = (location.state as { issueId?: string })?.issueId
 
@@ -59,38 +78,54 @@ export default function CodeViewer() {
     }
   }, [currentReview])
 
-  // Jump to issue from navigation state
-  useEffect(() => {
-    if (!stateIssueId || issues.length === 0) return
-    const issue = issues.find((i) => i.id === stateIssueId)
-    if (issue) {
-      const file = fileList.find((f) => f.file_path === issue.file_path)
-      if (file) loadFile(file.id, issue)
-    }
-  }, [stateIssueId, issues, fileList])
-
-  const treeData = useMemo(() => buildFileTree(fileList, issues), [fileList, issues])
-
-  const loadFile = async (fileId: string, focusIssue?: ReviewIssue) => {
+  const loadFile = useCallback(async (fileId: string, focusIssue?: ReviewIssue) => {
     if (!currentReview) return
     try {
       const content = await projectApi.fetchFileContent(currentReview.project, fileId)
       setSelectedFile(content)
-      const matching = issues.filter((i) => i.file_path === content.path)
+      setSelectedKeys([fileId])
+      const matching = issues.filter((i) => normalizePath(i.file_path) === normalizePath(content.path))
       setFileIssues(matching)
-      if (focusIssue) setSelectedIssue(focusIssue)
+      if (focusIssue) {
+        setSelectedIssue(focusIssue)
+        pendingScrollRef.current = focusIssue
+      }
     } catch {
       // ignore
     }
-  }
+  }, [currentReview, issues])
+
+  // Jump to issue from navigation state
+  useEffect(() => {
+    if (!stateIssueId || issues.length === 0) return
+    const issue = issues.find((i) => i.id === stateIssueId)
+    if (!issue) return
+    const file = fileList.find((f) => normalizePath(f.file_path) === normalizePath(issue.file_path))
+    if (!file) return
+
+    const pathKeys = getExpandedKeysForPath(issue.file_path)
+    setExpandedKeys((prev) => {
+      const merged = new Set([...prev, ...pathKeys])
+      return [...merged]
+    })
+    loadFile(file.id, issue)
+  }, [stateIssueId, issues, fileList, loadFile])
+
+  const treeData = useMemo(() => buildFileTree(fileList, issues), [fileList, issues])
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor
   }
 
+  // Apply decorations and scroll to issue
   useEffect(() => {
     const editor = editorRef.current
-    if (!editor || fileIssues.length === 0) return
+    if (!editor || !selectedFile) return
+
+    if (fileIssues.length === 0) {
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, [])
+      return
+    }
 
     const decorations = fileIssues.map((issue) => ({
       range: new monaco.Range(issue.start_line, 1, issue.end_line + 1, 1),
@@ -105,12 +140,22 @@ export default function CodeViewer() {
     }))
 
     decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations)
+
+    if (pendingScrollRef.current) {
+      editor.revealLineInCenter(pendingScrollRef.current.start_line)
+      pendingScrollRef.current = null
+    }
   }, [selectedFile, fileIssues])
 
-  const onSelectFile = (selectedKeys: React.Key[]) => {
-    if (selectedKeys.length === 0) return
-    const nodeId = selectedKeys[0] as string
+  const onSelectFile = (keys: React.Key[]) => {
+    if (keys.length === 0) return
+    const nodeId = keys[0] as string
+    setSelectedKeys(keys)
     loadFile(nodeId)
+  }
+
+  const onExpand = (keys: React.Key[]) => {
+    setExpandedKeys(keys)
   }
 
   return (
@@ -129,7 +174,13 @@ export default function CodeViewer() {
           bodyStyle={{ padding: 8, maxHeight: 'calc(100vh - 220px)', overflow: 'auto' }}
         >
           {treeData.length > 0 ? (
-            <Tree treeData={treeData} onSelect={onSelectFile} defaultExpandAll={false} />
+            <Tree
+              treeData={treeData}
+              onSelect={onSelectFile}
+              expandedKeys={expandedKeys}
+              selectedKeys={selectedKeys}
+              onExpand={onExpand}
+            />
           ) : (
             <Empty description="无文件" />
           )}
@@ -208,7 +259,10 @@ export default function CodeViewer() {
                   key={issue.id}
                   style={{ width: '100%', cursor: 'pointer', padding: '8px 12px' }}
                   hoverable
-                  onClick={() => setSelectedIssue(issue)}
+                  onClick={() => {
+                    setSelectedIssue(issue)
+                    editorRef.current?.revealLineInCenter(issue.start_line)
+                  }}
                 >
                   <Space>
                     <Tag color={SEVERITY_CONFIG[issue.severity].color}>
