@@ -7,7 +7,7 @@ load_dotenv(BASE_DIR / ".env")
 
 # SECURITY: 优先从环境变量读取，开发环境提供 fallback
 _is_dev = os.environ.get("DJANGO_DEVELOPMENT", "True") == "True"
-_is_eager = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
+_is_eager = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "True") == "True"
 if _is_dev:
     SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-dev-only-key-do-not-use-in-prod")
 else:
@@ -115,8 +115,8 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 CORS_ALLOW_CREDENTIALS = True
 
 # --- Celery ---
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "memory://")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "cache+memory://")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
