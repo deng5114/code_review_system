@@ -148,7 +148,7 @@ class ReviewViewSet(viewsets.GenericViewSet):
                 )
             import re
             safe_name = re.sub(r'[^\w\-.]', '_', review.project.name)[:50]
-            filename = f"review-{safe_name}-{review.id[:8]}.pdf"
+            filename = f"review-{safe_name}-{str(review.id)[:8]}.pdf"
             return HttpResponse(
                 pdf_bytes,
                 content_type="application/pdf",

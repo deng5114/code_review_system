@@ -37,7 +37,7 @@ class TestMarkdownReport:
     def test_contains_header(self, generator, sample_review_data):
         issues = [_make_issue()]
         md = generator.generate_markdown(sample_review_data, issues)
-        assert "# Code Review Report" in md
+        assert "代码审查报告" in md
         assert "TestProject" in md
 
     def test_contains_summary(self, generator, sample_review_data):
@@ -51,14 +51,14 @@ class TestMarkdownReport:
         assert "SQL Injection" in md
         assert "app.py" in md
 
-    def test_severity_badges(self, generator, sample_review_data):
+    def test_severity_labels(self, generator, sample_review_data):
         issues = [_make_issue(severity="critical")]
         md = generator.generate_markdown(sample_review_data, issues)
-        assert "CRITICAL" in md
+        assert "关键" in md
 
     def test_empty_issues(self, generator, sample_review_data):
         md = generator.generate_markdown(sample_review_data, [])
-        assert "No issues found" in md
+        assert "未发现问题" in md
 
     def test_code_snippet_included(self, generator, sample_review_data):
         issues = [_make_issue(code_snippet="dangerous code")]
@@ -76,7 +76,26 @@ class TestMarkdownReport:
             _make_issue(severity="high", start_line=20, title="B"),
         ]
         md = generator.generate_markdown(sample_review_data, issues)
-        assert "Statistics" in md or "统计" in md or "2" in md
+        assert "问题概览" in md
+        assert "2" in md
+
+    def test_dimension_distribution(self, generator, sample_review_data):
+        issues = [
+            _make_issue(dimension="security", title="A"),
+            _make_issue(dimension="performance", start_line=20, title="B"),
+        ]
+        md = generator.generate_markdown(sample_review_data, issues)
+        assert "安全性" in md
+        assert "性能" in md
+
+    def test_file_summary_table(self, generator, sample_review_data):
+        issues = [
+            _make_issue(file_path="app.py", title="A"),
+            _make_issue(file_path="app.py", start_line=20, severity="high", title="B"),
+        ]
+        md = generator.generate_markdown(sample_review_data, issues)
+        assert "文件问题分布" in md
+        assert "app.py" in md
 
 
 class TestJsonReport:

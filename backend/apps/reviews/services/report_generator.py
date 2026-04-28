@@ -1,8 +1,27 @@
+from collections import Counter
+
 SEVERITY_LABELS = {
-    "critical": "CRITICAL",
-    "high": "HIGH",
-    "medium": "MEDIUM",
-    "low": "LOW",
+    "critical": "关键",
+    "high": "高级",
+    "medium": "中级",
+    "low": "低级",
+}
+
+SEVERITY_EMOJI = {
+    "critical": "🔴",
+    "high": "🟠",
+    "medium": "🟡",
+    "low": "🔵",
+}
+
+DIMENSION_LABELS = {
+    "security": "安全性",
+    "correctness": "正确性",
+    "performance": "性能",
+    "maintainability": "可维护性",
+    "type_safety": "类型安全",
+    "completeness": "完整性",
+    "best_practices": "最佳实践",
 }
 
 
@@ -12,40 +31,123 @@ class ReportGenerator:
         summary = review_data.get("summary", "")
         ai_model = review_data.get("ai_model", "")
 
-        sections: list[str] = []
-        sections.append(f"# Code Review Report — {project_name}\n")
-        sections.append(f"**AI Model**: {ai_model}\n")
+        lines: list[str] = []
 
+        # Title
+        lines.append(f"# 代码审查报告 — {project_name}\n")
+        lines.append(f"> AI 模型: `{ai_model}`\n")
+
+        # Summary
         if summary:
-            sections.append(f"\n## Summary\n\n{summary}\n")
+            lines.append("## AI 总体评估\n")
+            lines.append(f"> {summary}\n")
+
+        # Stats
+        stats = self._compute_stats(issues)
+        lines.append("## 问题概览\n")
+        lines.append(f"| 指标 | 数量 |")
+        lines.append(f"|:----:|:----:|")
+        lines.append(f"| 问题总数 | **{stats['total']}** |")
+        lines.append(
+            f"| {SEVERITY_EMOJI['critical']} 关键 | **{stats['critical_count']}** |"
+        )
+        lines.append(
+            f"| {SEVERITY_EMOJI['high']} 高级 | **{stats['high_count']}** |"
+        )
+        lines.append(
+            f"| {SEVERITY_EMOJI['medium']} 中级 | **{stats['medium_count']}** |"
+        )
+        lines.append(
+            f"| {SEVERITY_EMOJI['low']} 低级 | **{stats['low_count']}** |\n"
+        )
 
         if not issues:
-            sections.append("\n**No issues found.** The code looks good!\n")
-            return "\n".join(sections)
+            lines.append("**未发现问题，代码质量良好！**\n")
+            return "\n".join(lines)
 
-        stats = self._compute_stats(issues)
-        sections.append(f"\n## Statistics\n")
-        sections.append(f"- Total issues: {stats['total']}")
-        sections.append(f"- Critical: {stats['critical_count']} | High: {stats['high_count']} | Medium: {stats['medium_count']} | Low: {stats['low_count']}\n")
+        # Severity distribution bar (text-based)
+        lines.append("### 严重性分布\n")
+        total = max(stats["total"], 1)
+        for sev in ["critical", "high", "medium", "low"]:
+            count = stats[f"{sev}_count"]
+            pct = count / total * 100
+            bar_len = int(pct / 2)
+            bar = "█" * bar_len + "░" * (50 - bar_len)
+            lines.append(
+                f"- {SEVERITY_EMOJI[sev]} **{SEVERITY_LABELS[sev]}**: "
+                f"`{bar}` {count} ({pct:.0f}%)"
+            )
+        lines.append("")
 
-        sections.append("\n## Issues\n")
+        # Dimension distribution
+        lines.append("### 维度分布\n")
+        dim_counts: Counter = Counter()
+        for issue in issues:
+            dim_counts[issue.dimension] += 1
+        dim_sorted = dim_counts.most_common()
+        for dim, count in dim_sorted:
+            label = DIMENSION_LABELS.get(dim, dim)
+            pct = count / total * 100
+            bar_len = int(pct / 2)
+            bar = "▓" * bar_len + "░" * (50 - bar_len)
+            lines.append(f"- **{label}**: `{bar}` {count} ({pct:.0f}%)")
+        lines.append("")
+
+        # File summary
+        lines.append("## 文件问题分布\n")
+        lines.append("| 文件路径 | 问题数 | 关键 | 高级 | 中级 | 低级 |")
+        lines.append("|:---------|:------:|:----:|:----:|:----:|:----:|")
+        file_counts: Counter = Counter()
+        file_sev: dict[str, Counter] = {}
+        for issue in issues:
+            file_counts[issue.file_path] += 1
+            if issue.file_path not in file_sev:
+                file_sev[issue.file_path] = Counter()
+            file_sev[issue.file_path][issue.severity] += 1
+        for filepath, count in sorted(file_counts.items(), key=lambda x: -x[1]):
+            sev = file_sev[filepath]
+            lines.append(
+                f"| `{filepath}` | **{count}** | "
+                f"{sev.get('critical', 0)} | {sev.get('high', 0)} | "
+                f"{sev.get('medium', 0)} | {sev.get('low', 0)} |"
+            )
+        lines.append("")
+
+        # Issue details
+        lines.append("## 问题详情\n")
         current_file = ""
         for issue in sorted(issues, key=lambda i: (i.file_path, i.start_line)):
             if issue.file_path != current_file:
                 current_file = issue.file_path
-                sections.append(f"\n### `{current_file}`\n")
-            label = SEVERITY_LABELS.get(issue.severity, issue.severity.upper())
-            sections.append(f"- **[{label}]** L{issue.start_line}-{issue.end_line}: {issue.title}")
-            sections.append(f"  - {issue.description}")
-            if issue.suggestion:
-                sections.append(f"  - Suggestion: {issue.suggestion}")
-            if issue.code_snippet:
-                sections.append(f"  ```\n  {issue.code_snippet}\n  ```")
-            if issue.fix_snippet:
-                sections.append(f"  Fix:\n  ```\n  {issue.fix_snippet}\n  ```")
-            sections.append("")
+                lines.append(f"### 📄 `{current_file}`\n")
 
-        return "\n".join(sections)
+            sev_emoji = SEVERITY_EMOJI.get(issue.severity, "")
+            sev_label = SEVERITY_LABELS.get(issue.severity, issue.severity.upper())
+            dim_label = DIMENSION_LABELS.get(issue.dimension, issue.dimension)
+            confidence_pct = f"{issue.confidence:.0%}"
+
+            lines.append(
+                f"#### {sev_emoji} [{sev_label}] {issue.title}\n"
+            )
+            lines.append(f"- **位置**: L{issue.start_line}-{issue.end_line}")
+            lines.append(f"- **维度**: {dim_label}")
+            lines.append(f"- **置信度**: {confidence_pct}")
+            lines.append(f"\n{issue.description}\n")
+
+            if issue.suggestion:
+                lines.append(f"> 💡 **建议**: {issue.suggestion}\n")
+
+            if issue.code_snippet:
+                lines.append("**问题代码**:")
+                lines.append(f"```python\n{issue.code_snippet}\n```\n")
+
+            if issue.fix_snippet:
+                lines.append("**修复代码**:")
+                lines.append(f"```python\n{issue.fix_snippet}\n```\n")
+
+            lines.append("---\n")
+
+        return "\n".join(lines)
 
     def generate_json(self, review_data: dict, issues: list) -> dict:
         stats = self._compute_stats(issues)
