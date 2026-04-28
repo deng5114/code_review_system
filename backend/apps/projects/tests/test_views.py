@@ -3,13 +3,7 @@ import os
 import zipfile
 
 import pytest
-from django.test import Client
 from rest_framework.test import APIClient
-
-
-@pytest.fixture
-def api_client():
-    return APIClient()
 
 
 @pytest.fixture
@@ -41,8 +35,8 @@ def sample_zip_upload(tmp_dir):
 class TestProjectUpload:
     """项目上传 API 集成测试"""
 
-    def test_upload_zip_success(self, api_client, sample_zip_upload):
-        response = api_client.post(
+    def test_upload_zip_success(self, auth_client, sample_zip_upload):
+        response = auth_client.post(
             "/api/projects/",
             {"name": "测试项目", "file": sample_zip_upload},
             format="multipart",
@@ -54,8 +48,8 @@ class TestProjectUpload:
         assert data["data"]["status"] == "ready"
         assert data["data"]["project_type"] == "python"
 
-    def test_upload_sets_project_type(self, api_client, sample_zip_upload):
-        response = api_client.post(
+    def test_upload_sets_project_type(self, auth_client, sample_zip_upload):
+        response = auth_client.post(
             "/api/projects/",
             {"name": "类型检测", "file": sample_zip_upload},
             format="multipart",
@@ -63,8 +57,8 @@ class TestProjectUpload:
         data = response.json()
         assert data["data"]["project_type"] == "python"
 
-    def test_upload_detects_languages(self, api_client, sample_zip_upload):
-        response = api_client.post(
+    def test_upload_detects_languages(self, auth_client, sample_zip_upload):
+        response = auth_client.post(
             "/api/projects/",
             {"name": "语言检测", "file": sample_zip_upload},
             format="multipart",
@@ -72,50 +66,58 @@ class TestProjectUpload:
         data = response.json()
         assert "python" in data["data"]["detected_languages"]
 
-    def test_upload_creates_project_files(self, api_client, sample_zip_upload):
-        response = api_client.post(
+    def test_upload_creates_project_files(self, auth_client, sample_zip_upload):
+        response = auth_client.post(
             "/api/projects/",
             {"name": "文件记录", "file": sample_zip_upload},
             format="multipart",
         )
         project_id = response.json()["data"]["id"]
-        files_resp = api_client.get(f"/api/projects/{project_id}/files/")
+        files_resp = auth_client.get(f"/api/projects/{project_id}/files/")
         assert files_resp.status_code == 200
         files_data = files_resp.json()["data"]
         assert len(files_data) > 0
 
-    def test_upload_missing_name(self, api_client, sample_zip_upload):
-        response = api_client.post(
+    def test_upload_missing_name(self, auth_client, sample_zip_upload):
+        response = auth_client.post(
             "/api/projects/",
             {"file": sample_zip_upload},
             format="multipart",
         )
         assert response.status_code == 400
 
-    def test_upload_missing_file(self, api_client):
-        response = api_client.post(
+    def test_upload_missing_file(self, auth_client):
+        response = auth_client.post(
             "/api/projects/",
             {"name": "无文件"},
             format="multipart",
         )
         assert response.status_code == 400
 
+    def test_unauthenticated_upload(self, api_client, sample_zip_upload):
+        response = api_client.post(
+            "/api/projects/",
+            {"name": "未认证", "file": sample_zip_upload},
+            format="multipart",
+        )
+        assert response.status_code == 401
+
 
 @pytest.mark.django_db
 class TestProjectList:
     """项目列表 API 测试"""
 
-    def test_list_projects_empty(self, api_client):
-        response = api_client.get("/api/projects/")
+    def test_list_projects_empty(self, auth_client):
+        response = auth_client.get("/api/projects/")
         assert response.status_code == 200
 
-    def test_list_projects_after_upload(self, api_client, sample_zip_upload):
-        api_client.post(
+    def test_list_projects_after_upload(self, auth_client, sample_zip_upload):
+        auth_client.post(
             "/api/projects/",
             {"name": "列表测试", "file": sample_zip_upload},
             format="multipart",
         )
-        response = api_client.get("/api/projects/")
+        response = auth_client.get("/api/projects/")
         assert response.status_code == 200
 
 
@@ -123,19 +125,19 @@ class TestProjectList:
 class TestProjectDetail:
     """项目详情 API 测试"""
 
-    def test_get_project_detail(self, api_client, sample_zip_upload):
-        resp = api_client.post(
+    def test_get_project_detail(self, auth_client, sample_zip_upload):
+        resp = auth_client.post(
             "/api/projects/",
             {"name": "详情测试", "file": sample_zip_upload},
             format="multipart",
         )
         project_id = resp.json()["data"]["id"]
-        response = api_client.get(f"/api/projects/{project_id}/")
+        response = auth_client.get(f"/api/projects/{project_id}/")
         assert response.status_code == 200
         assert response.json()["data"]["name"] == "详情测试"
 
-    def test_get_nonexistent_project(self, api_client):
-        response = api_client.get("/api/projects/00000000-0000-0000-0000-000000000000/")
+    def test_get_nonexistent_project(self, auth_client):
+        response = auth_client.get("/api/projects/00000000-0000-0000-0000-000000000000/")
         assert response.status_code == 404
 
 
@@ -143,31 +145,31 @@ class TestProjectDetail:
 class TestProjectFiles:
     """项目文件 API 测试"""
 
-    def test_get_file_content(self, api_client, sample_zip_upload):
-        resp = api_client.post(
+    def test_get_file_content(self, auth_client, sample_zip_upload):
+        resp = auth_client.post(
             "/api/projects/",
             {"name": "文件内容", "file": sample_zip_upload},
             format="multipart",
         )
         project_id = resp.json()["data"]["id"]
 
-        files_resp = api_client.get(f"/api/projects/{project_id}/files/")
+        files_resp = auth_client.get(f"/api/projects/{project_id}/files/")
         file_id = files_resp.json()["data"][0]["id"]
 
-        content_resp = api_client.get(f"/api/projects/{project_id}/files/{file_id}/")
+        content_resp = auth_client.get(f"/api/projects/{project_id}/files/{file_id}/")
         assert content_resp.status_code == 200
         content_data = content_resp.json()["data"]
         assert "content" in content_data
         assert "language" in content_data
 
-    def test_get_nonexistent_file(self, api_client, sample_zip_upload):
-        resp = api_client.post(
+    def test_get_nonexistent_file(self, auth_client, sample_zip_upload):
+        resp = auth_client.post(
             "/api/projects/",
             {"name": "不存在文件", "file": sample_zip_upload},
             format="multipart",
         )
         project_id = resp.json()["data"]["id"]
-        response = api_client.get(
+        response = auth_client.get(
             f"/api/projects/{project_id}/files/00000000-0000-0000-0000-000000000000/"
         )
         assert response.status_code == 404
@@ -177,12 +179,12 @@ class TestProjectFiles:
 class TestProjectDelete:
     """项目删除 API 测试"""
 
-    def test_delete_project(self, api_client, sample_zip_upload):
-        resp = api_client.post(
+    def test_delete_project(self, auth_client, sample_zip_upload):
+        resp = auth_client.post(
             "/api/projects/",
             {"name": "删除测试", "file": sample_zip_upload},
             format="multipart",
         )
         project_id = resp.json()["data"]["id"]
-        response = api_client.delete(f"/api/projects/{project_id}/")
+        response = auth_client.delete(f"/api/projects/{project_id}/")
         assert response.status_code == 200

@@ -27,10 +27,13 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "channels",
     # Local apps
     "apps.common",
+    "apps.users",
     "apps.projects",
     "apps.reviews",
     "apps.ai",
@@ -50,6 +53,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+
+AUTH_USER_MODEL = "users.User"
 
 TEMPLATES = [
     {
@@ -100,11 +105,28 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
+}
+
+# --- JWT ---
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 # --- CORS ---
@@ -147,7 +169,7 @@ else:
 
 # --- Upload limits ---
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB in memory, rest uses temp file
-DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
 # --- Logging ---
 LOGGING = {

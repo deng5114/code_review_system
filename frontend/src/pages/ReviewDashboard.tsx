@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Card, Progress, Statistic, Row, Col, Space, Tag, List, Spin, Typography, Button, Empty, message,
 } from 'antd'
-import { CodeOutlined, ArrowLeftOutlined, DownloadOutlined, WifiOutlined, ApiOutlined } from '@ant-design/icons'
+import { CodeOutlined, ArrowLeftOutlined, WifiOutlined, ApiOutlined, FilePdfOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useReviewStore } from '../stores/reviewStore'
 import { useReviewWebSocket } from '../hooks/useReviewWebSocket'
 import { SEVERITY_CONFIG, DIMENSION_LABELS } from '../utils/constants'
@@ -112,12 +112,25 @@ export default function ReviewDashboard() {
     setFilters(newFilters)
   }, [])
 
-  const handleExport = useCallback(async () => {
+  const handleExportPdf = useCallback(async () => {
     if (!currentReview) return
     setExporting(true)
     try {
-      await downloadReport(currentReview.id, currentReview.project_name)
-      message.success('报告已导出')
+      await downloadReport(currentReview.id, currentReview.project_name, 'pdf')
+      message.success('PDF 报告已导出')
+    } catch {
+      message.error('导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }, [currentReview])
+
+  const handleExportMd = useCallback(async () => {
+    if (!currentReview) return
+    setExporting(true)
+    try {
+      await downloadReport(currentReview.id, currentReview.project_name, 'markdown')
+      message.success('Markdown 报告已导出')
     } catch {
       message.error('导出失败')
     } finally {
@@ -145,13 +158,22 @@ export default function ReviewDashboard() {
             {isInProgress ? '进行中' : isCompleted ? '已完成' : '失败'}
           </Tag>
           {isCompleted && (
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={handleExport}
-              loading={exporting}
-            >
-              导出报告
-            </Button>
+            <Space>
+              <Button
+                icon={<FilePdfOutlined />}
+                onClick={handleExportPdf}
+                loading={exporting}
+              >
+                导出 PDF
+              </Button>
+              <Button
+                icon={<FileTextOutlined />}
+                onClick={handleExportMd}
+                loading={exporting}
+              >
+                导出 Markdown
+              </Button>
+            </Space>
           )}
         </Space>
 

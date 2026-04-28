@@ -19,6 +19,7 @@ class AIConfigSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict) -> AIConfig:
         raw_key = validated_data.pop("api_key")
+        validated_data["owner"] = self.context["request"].user
         instance = AIConfig(**validated_data)
         instance.api_key = raw_key
         instance.save()

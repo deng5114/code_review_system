@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.common.models import TimestampMixin, UUIDMixin
@@ -21,6 +22,12 @@ class ProjectType(models.TextChoices):
 
 
 class Project(UUIDMixin, TimestampMixin):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="projects",
+        verbose_name="所属用户",
+    )
     name = models.CharField(max_length=255, verbose_name="项目名称")
     upload_file = models.FileField(
         upload_to="uploads/projects/%Y/%m/%d/",

@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -24,6 +25,12 @@ class AIProvider(models.TextChoices):
 
 
 class AIConfig(UUIDMixin, TimestampMixin):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_configs",
+        verbose_name="所属用户",
+    )
     provider = models.CharField(
         max_length=50, choices=AIProvider.choices, verbose_name="提供商"
     )
@@ -83,7 +90,7 @@ class AIConfig(UUIDMixin, TimestampMixin):
 
     def clean(self) -> None:
         if self.is_default:
-            exists = AIConfig.objects.filter(is_default=True).exclude(
+            exists = AIConfig.objects.filter(is_default=True, owner=self.owner).exclude(
                 pk=self.pk
             )
             if exists.exists():

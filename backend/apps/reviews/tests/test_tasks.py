@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from django.utils import timezone
 
 from apps.ai.models import AIConfig
 from apps.projects.models import Project, ProjectFile
@@ -10,9 +9,10 @@ from apps.reviews.tasks import start_review_task
 
 
 @pytest.fixture
-def setup_review(db):
+def setup_review(db, user) -> Review:
     project = Project.objects.create(
         name="TestProject",
+        owner=user,
         status="ready",
         project_type="python",
         detected_languages=["Python"],
@@ -28,6 +28,7 @@ def setup_review(db):
         content="def hello():\n    pass\n",
     )
     config = AIConfig(
+        owner=user,
         provider="openai",
         display_name="Test",
         model_name="gpt-4o",
@@ -113,8 +114,8 @@ class TestStartReviewTask:
         # Should not raise, just log and return
 
     @patch("apps.reviews.tasks.ReviewEngine")
-    def test_no_ai_config(self, MockEngine, db):
-        project = Project.objects.create(name="NoConfig", status="ready")
+    def test_no_ai_config(self, MockEngine, db, user):
+        project = Project.objects.create(name="NoConfig", owner=user, status="ready")
         review = Review.objects.create(project=project, ai_model="", ai_provider="")
 
         start_review_task(str(review.id))

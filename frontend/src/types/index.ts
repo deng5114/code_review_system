@@ -1,5 +1,31 @@
 // === API 响应 ===
 
+// === Auth ===
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  date_joined: string
+}
+
+export interface AuthTokens {
+  access: string
+  refresh: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface RegisterRequest {
+  username: string
+  password: string
+  password_confirm: string
+  email?: string
+}
+
 export interface ApiResponse<T> {
   success: boolean
   data: T
@@ -8,6 +34,7 @@ export interface ApiResponse<T> {
     message: string
     status_code: number
   }
+  pagination?: Pagination
 }
 
 export interface Pagination {

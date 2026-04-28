@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +12,7 @@ from apps.reviews.serializers import (
     ReviewIssueSerializer,
     ReviewSerializer,
 )
+from apps.reviews.services.pdf_generator import generate_review_pdf
 from apps.reviews.services.report_generator import ReportGenerator
 from apps.reviews.tasks import start_review_task
 
@@ -18,6 +20,9 @@ from apps.reviews.tasks import start_review_task
 class ReviewViewSet(viewsets.GenericViewSet):
     queryset = Review.objects.select_related("project").all()
     serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(project__owner=self.request.user)
 
     def list(self, request):
         queryset = self.filter_queryset(self.get_queryset())
@@ -52,7 +57,7 @@ class ReviewViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            project = Project.objects.get(id=project_id)
+            project = Project.objects.get(id=project_id, owner=request.user)
         except Project.DoesNotExist:
             return Response(
                 {"success": False, "error": {"code": "NOT_FOUND", "message": "Project not found"}},
@@ -133,6 +138,22 @@ class ReviewViewSet(viewsets.GenericViewSet):
         if fmt == "markdown":
             md = generator.generate_markdown(review_data, issues)
             return Response({"success": True, "data": {"format": "markdown", "content": md}})
+        elif fmt == "pdf":
+            try:
+                pdf_bytes = generate_review_pdf(review)
+            except Exception:
+                return Response(
+                    {"success": False, "error": {"message": "PDF 生成失败"}},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            import re
+            safe_name = re.sub(r'[^\w\-.]', '_', review.project.name)[:50]
+            filename = f"review-{safe_name}-{review.id[:8]}.pdf"
+            return HttpResponse(
+                pdf_bytes,
+                content_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
         else:
             result = generator.generate_json(review_data, issues)
             return Response({"success": True, "data": result})

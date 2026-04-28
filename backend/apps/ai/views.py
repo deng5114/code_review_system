@@ -37,6 +37,9 @@ class AIConfigViewSet(viewsets.ModelViewSet):
     queryset = AIConfig.objects.all()
     serializer_class = AIConfigSerializer
 
+    def get_queryset(self):
+        return super().get_queryset().filter(owner=self.request.user)
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
@@ -94,7 +97,7 @@ class AIConfigViewSet(viewsets.ModelViewSet):
 
         if data.get("config_id"):
             try:
-                config_obj = AIConfig.objects.get(id=data["config_id"])
+                config_obj = AIConfig.objects.get(id=data["config_id"], owner=request.user)
                 llm_config = LLMConfig.from_ai_config(config_obj)
             except AIConfig.DoesNotExist:
                 return Response(

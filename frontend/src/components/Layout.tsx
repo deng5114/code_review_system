@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Layout as AntLayout, Menu, theme } from 'antd'
-import { UploadOutlined, SettingOutlined, HomeOutlined } from '@ant-design/icons'
+import { Layout as AntLayout, Menu, theme, Dropdown, Avatar, Space } from 'antd'
+import { UploadOutlined, SettingOutlined, HomeOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons'
+import { useAuthStore } from '../stores/authStore'
 
 const { Sider, Content } = AntLayout
 
@@ -16,9 +17,15 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { token } = theme.useToken()
+  const { user, logout } = useAuthStore()
 
   const selectedKey = menuItems.find((item) => location.pathname.startsWith(item.key) && item.key !== '/')?.key
     ?? (location.pathname === '/' ? '/' : '')
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
@@ -41,6 +48,20 @@ export default function AppLayout() {
         />
       </Sider>
       <AntLayout>
+        <div style={{ padding: '12px 24px', background: token.colorBgContainer, borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'flex-end' }}>
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout },
+              ],
+            }}
+          >
+            <Space style={{ cursor: 'pointer' }}>
+              <Avatar size="small" icon={<UserOutlined />} />
+              <span>{user?.username}</span>
+            </Space>
+          </Dropdown>
+        </div>
         <Content style={{ padding: 24, background: token.colorBgLayout, minHeight: 'auto' }}>
           <Outlet />
         </Content>

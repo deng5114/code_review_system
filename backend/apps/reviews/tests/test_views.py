@@ -10,14 +10,10 @@ from apps.reviews.models import Review, ReviewIssue, ReviewStatus
 
 
 @pytest.fixture
-def api_client():
-    return APIClient()
-
-
-@pytest.fixture
-def project(db):
+def project(db, user):
     return Project.objects.create(
         name="TestProject",
+        owner=user,
         status="ready",
         project_type="python",
         detected_languages=["Python"],
@@ -79,8 +75,8 @@ def review_with_issues(review):
 class TestCreateReview:
     @patch("apps.reviews.views.transaction.on_commit", side_effect=lambda cb: cb())
     @patch("apps.reviews.views.start_review_task")
-    def test_create_review(self, mock_task, mock_on_commit, api_client, project):
-        resp = api_client.post(
+    def test_create_review(self, mock_task, mock_on_commit, auth_client, project):
+        resp = auth_client.post(
             "/api/reviews/",
             {"project_id": str(project.id)},
             format="json",
@@ -93,8 +89,8 @@ class TestCreateReview:
 
     @patch("apps.reviews.views.transaction.on_commit", side_effect=lambda cb: cb())
     @patch("apps.reviews.views.start_review_task")
-    def test_create_with_custom_instructions(self, mock_task, mock_on_commit, api_client, project):
-        resp = api_client.post(
+    def test_create_with_custom_instructions(self, mock_task, mock_on_commit, auth_client, project):
+        resp = auth_client.post(
             "/api/reviews/",
             {"project_id": str(project.id), "custom_instructions": "Focus on security"},
             format="json",
@@ -103,152 +99,160 @@ class TestCreateReview:
         review = Review.objects.get(id=resp.data["data"]["id"])
         assert review.custom_instructions == "Focus on security"
 
-    def test_create_missing_project_id(self, api_client):
-        resp = api_client.post("/api/reviews/", {}, format="json")
+    def test_create_missing_project_id(self, auth_client):
+        resp = auth_client.post("/api/reviews/", {}, format="json")
         assert resp.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_create_nonexistent_project(self, api_client):
-        resp = api_client.post(
+    def test_create_nonexistent_project(self, auth_client):
+        resp = auth_client.post(
             "/api/reviews/",
             {"project_id": "00000000-0000-0000-0000-000000000000"},
             format="json",
         )
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_unauthenticated_create(self, api_client, project):
+        resp = api_client.post(
+            "/api/reviews/",
+            {"project_id": str(project.id)},
+            format="json",
+        )
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 @pytest.mark.django_db
 class TestListReviews:
-    def test_list_reviews(self, api_client, review):
-        resp = api_client.get("/api/reviews/")
+    def test_list_reviews(self, auth_client, review):
+        resp = auth_client.get("/api/reviews/")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["success"] is True
         assert len(resp.data["data"]) >= 1
 
-    def test_filter_by_project(self, api_client, review, project):
-        resp = api_client.get(f"/api/reviews/?project_id={project.id}")
+    def test_filter_by_project(self, auth_client, review, project):
+        resp = auth_client.get(f"/api/reviews/?project_id={project.id}")
         assert resp.status_code == status.HTTP_200_OK
         assert all(r["project"] == project.id for r in resp.data["data"])
 
 
 @pytest.mark.django_db
 class TestRetrieveReview:
-    def test_retrieve_review(self, api_client, review):
-        resp = api_client.get(f"/api/reviews/{review.id}/")
+    def test_retrieve_review(self, auth_client, review):
+        resp = auth_client.get(f"/api/reviews/{review.id}/")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["data"]["ai_model"] == "gpt-4o"
         assert resp.data["data"]["total_issues"] == 2
         assert resp.data["data"]["project_name"] == "TestProject"
 
-    def test_retrieve_nonexistent(self, api_client):
-        resp = api_client.get("/api/reviews/00000000-0000-0000-0000-000000000000/")
+    def test_retrieve_nonexistent(self, auth_client):
+        resp = auth_client.get("/api/reviews/00000000-0000-0000-0000-000000000000/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
 class TestReviewIssues:
-    def test_list_issues(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/issues/")
+    def test_list_issues(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/issues/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 2
 
-    def test_filter_by_severity(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/issues/?severity=critical")
+    def test_filter_by_severity(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/issues/?severity=critical")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
         assert resp.data["data"][0]["severity"] == "critical"
 
-    def test_filter_by_dimension(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/issues/?dimension=performance")
+    def test_filter_by_dimension(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/issues/?dimension=performance")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
 
-    def test_filter_by_file_path(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/issues/?file_path=utils")
+    def test_filter_by_file_path(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/issues/?file_path=utils")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
 
-    def test_filter_by_multiple_severities(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_filter_by_multiple_severities(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?severity=critical,high"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 2
 
-    def test_filter_by_severity_with_trailing_comma(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_filter_by_severity_with_trailing_comma(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?severity=critical,"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
         assert resp.data["data"][0]["severity"] == "critical"
 
-    def test_filter_by_multiple_dimensions(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_filter_by_multiple_dimensions(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?dimension=security,performance"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 2
 
-    def test_filter_empty_severity(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_filter_empty_severity(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?severity="
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 2
 
-    def test_search_by_title(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_search_by_title(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?search=SQL"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
         assert resp.data["data"][0]["title"] == "SQL Injection"
 
-    def test_search_by_description(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_search_by_description(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?search=sanitized"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
 
-    def test_search_case_insensitive(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_search_case_insensitive(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?search=sql"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
 
-    def test_search_no_results(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_search_no_results(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?search=nonexistent"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 0
 
-    def test_combined_severity_and_search(self, api_client, review_with_issues):
-        resp = api_client.get(
+    def test_combined_severity_and_search(self, auth_client, review_with_issues):
+        resp = auth_client.get(
             f"/api/reviews/{review_with_issues.id}/issues/?severity=critical&search=SQL"
         )
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 1
         assert resp.data["data"][0]["severity"] == "critical"
 
-    def test_empty_issues(self, api_client, review):
-        resp = api_client.get(f"/api/reviews/{review.id}/issues/")
+    def test_empty_issues(self, auth_client, review):
+        resp = auth_client.get(f"/api/reviews/{review.id}/issues/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data["data"]) == 0
 
 
 @pytest.mark.django_db
 class TestReviewReport:
-    def test_json_report(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/report/")
+    def test_json_report(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/report/")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["data"]["total_issues"] == 2
         assert len(resp.data["data"]["issues"]) == 2
 
-    def test_markdown_report(self, api_client, review_with_issues):
-        resp = api_client.get(f"/api/reviews/{review_with_issues.id}/report/?output=markdown")
+    def test_markdown_report(self, auth_client, review_with_issues):
+        resp = auth_client.get(f"/api/reviews/{review_with_issues.id}/report/?output=markdown")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["data"]["format"] == "markdown"
         assert "SQL Injection" in resp.data["data"]["content"]

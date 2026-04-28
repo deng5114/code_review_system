@@ -30,6 +30,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
 
+    def get_queryset(self):
+        return super().get_queryset().filter(owner=self.request.user)
+
     def get_parsers(self):
         if getattr(self, "action", None) == "create":
             return [MultiPartParser()]
@@ -43,7 +46,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         name = serializer.validated_data["name"]
         upload_file = serializer.validated_data["file"]
 
-        project = Project.objects.create(name=name, status="uploading")
+        project = Project.objects.create(name=name, status="uploading", owner=request.user)
 
         # 保存上传文件
         project.upload_file = upload_file

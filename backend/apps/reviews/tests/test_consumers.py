@@ -9,9 +9,10 @@ from apps.reviews.models import Review, ReviewStatus
 
 
 @pytest.fixture
-def review_with_project(db):
+def review_with_project(db, user):
     project = Project.objects.create(
         name="WSProject",
+        owner=user,
         status="ready",
         project_type="python",
     )

@@ -71,8 +71,10 @@ def start_review_task(self, review_id: str) -> None:
             for f in files_qs
         ]
 
-        # Load AI config
-        ai_config_obj = AIConfig.objects.filter(is_active=True).order_by(
+        # Load AI config (from project owner)
+        ai_config_obj = AIConfig.objects.filter(
+            is_active=True, owner=project.owner,
+        ).order_by(
             "-is_default", "created_at"
         ).first()
         if not ai_config_obj:
@@ -83,7 +85,7 @@ def start_review_task(self, review_id: str) -> None:
         fallback_configs = LLMCallManager.build_fallback_chain(
             list(
                 AIConfig.objects.filter(
-                    is_active=True, fallback_enabled=True,
+                    is_active=True, fallback_enabled=True, owner=project.owner,
                 ).exclude(pk=ai_config_obj.pk).order_by("-priority")[:5]
             )
         )
